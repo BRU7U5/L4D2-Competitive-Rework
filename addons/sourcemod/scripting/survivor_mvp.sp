@@ -85,7 +85,7 @@ public Plugin:myinfo =
     name = "Survivor MVP notification",
     author = "Tabun, Artifacial",
     description = "Shows MVP for survivor team at end of round",
-    version = "0.3.1",
+    version = "0.3.3",
     url = "https://github.com/alexberriman/l4d2_survivor_mvp"
 };
 
@@ -96,13 +96,12 @@ new     Handle:     hCountTankDamage =  INVALID_HANDLE;         // whether we're
 new     Handle:     hCountWitchDamage = INVALID_HANDLE;         // whether we're tracking witch damage for MVP-selection
 new     Handle:     hTrackFF =          INVALID_HANDLE;         // whether we're tracking friendly-fire damage (separate stat)
 new     Handle:     hBrevityFlags =     INVALID_HANDLE;         // how verbose/brief the output should be:
-new     Handle:     hRUPActive =        INVALID_HANDLE;         // whether the ready up mod is active
 
 new     bool:       bCountTankDamage;
 new     bool:       bCountWitchDamage;
 new     bool:       bTrackFF;
 new                 iBrevityFlags;
-new     bool:       bRUPActive;
+new     bool:       bRUPLive;
 
 new     String:     sClientName[MAXPLAYERS + 1][64];            // which name is connected to the clientId?
 
@@ -147,7 +146,7 @@ new                 iRoundNumber;
 new                 bInRound;
 new                 bPlayerLeftStartArea;                       // used for tracking FF when RUP enabled
 
-new     String:     sTmpString[MAX_NAME_LENGTH];                // just used because I'm not going to break my head over why string assignment parameter passing doesn't work
+stock char sTmpString[MAX_NAME_LENGTH];                // just used because I'm not going to break my head over why string assignment parameter passing doesn't work
 
 /*
 *      Natives
@@ -168,14 +167,14 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 }
 
 // simply return current round MVP client
-public Native_GetMVP(Handle:plugin, numParams)
+int Native_GetMVP(Handle:plugin, numParams)
 {
     new client = findMVPSI();
     return _:client;
 }
 
 // return damage percent of client
-public Native_GetMVPDmgPercent(Handle:plugin, numParams)
+int Native_GetMVPDmgPercent(Handle:plugin, numParams)
 {
     new client = GetNativeCell(1);
     new Float: dmgprc = client && iTotalDamageAll > 0 ? (float(iDidDamageAll[client]) / float(iTotalDamageAll)) * 100 : 0.0;
@@ -183,7 +182,7 @@ public Native_GetMVPDmgPercent(Handle:plugin, numParams)
 }
 
 // return damage of client
-public Native_GetMVPDmgCount(Handle:plugin, numParams)
+int Native_GetMVPDmgCount(Handle:plugin, numParams)
 {
     new client = GetNativeCell(1);
     new dmg = client && iTotalDamageAll > 0 ? iDidDamageAll[client] : 0;
@@ -191,7 +190,7 @@ public Native_GetMVPDmgCount(Handle:plugin, numParams)
 }
 
 // return SI kills of client
-public Native_GetMVPKills(Handle:plugin, numParams)
+int Native_GetMVPKills(Handle:plugin, numParams)
 {
     new client = GetNativeCell(1);
     new dmg = client && iTotalKills > 0 ? iGotKills[client] : 0;
@@ -199,14 +198,14 @@ public Native_GetMVPKills(Handle:plugin, numParams)
 }
 
 // simply return current round MVP client (Common)
-public Native_GetMVPCI(Handle:plugin, numParams)
+int Native_GetMVPCI(Handle:plugin, numParams)
 {
     new client = findMVPCommon();
     return _:client;
 }
 
 // return common kills for client
-public Native_GetMVPCIKills(Handle:plugin, numParams)
+int Native_GetMVPCIKills(Handle:plugin, numParams)
 {
     new client = GetNativeCell(1);
     new dmg = client && iTotalCommon > 0 ? iGotCommon[client] : 0;
@@ -214,7 +213,7 @@ public Native_GetMVPCIKills(Handle:plugin, numParams)
 }
 
 // return CI percent of client
-public Native_GetMVPCIPercent(Handle:plugin, numParams)
+int Native_GetMVPCIPercent(Handle:plugin, numParams)
 {
     new client = GetNativeCell(1);
     new Float: dmgprc = client && iTotalCommon > 0 ? (float(iGotCommon[client]) / float(iTotalCommon)) * 100 : 0.0;
@@ -276,17 +275,6 @@ public OnPluginStart()
     
     if (!(iBrevityFlags & BREV_FF)) { bTrackFF = true; } // force tracking on if we're showing FF
     
-    // RUP?
-    hRUPActive = FindConVar("l4d_ready_enabled");
-    if (hRUPActive != INVALID_HANDLE)
-    {
-        // hook changes for this, and set state appropriately
-        bRUPActive = GetConVarBool(hRUPActive);
-        HookConVarChange(hRUPActive, ConVarChange_RUPActive);
-    } else {
-        // not loaded
-        bRUPActive = false;
-    }
     bPlayerLeftStartArea = false;
     
     // Commands
@@ -297,12 +285,10 @@ public OnPluginStart()
     RegConsoleCmd("say_team", Say_Cmd);
 }
 
-/*
-public OnPluginEnd()
+public OnRoundIsLive()
 {
-// nothing
+    bRUPLive = true;
 }
-*/
 
 public OnClientPutInServer(client)
 {
@@ -345,25 +331,24 @@ public OnClientPutInServer(client)
 *      ==============
 */
 
-public ConVarChange_CountTankDamage(Handle:cvar, const String:oldValue[], const String:newValue[]) {
+void ConVarChange_CountTankDamage(Handle:cvar, const String:oldValue[], const String:newValue[]) {
     bCountTankDamage = StringToInt(newValue) != 0;
 }
-public ConVarChange_CountWitchDamage(Handle:cvar, const String:oldValue[], const String:newValue[]) {
+
+void ConVarChange_CountWitchDamage(Handle:cvar, const String:oldValue[], const String:newValue[]) {
     bCountWitchDamage = StringToInt(newValue) != 0;
 }
-public ConVarChange_TrackFF(Handle:cvar, const String:oldValue[], const String:newValue[]) {
+
+void ConVarChange_TrackFF(Handle:cvar, const String:oldValue[], const String:newValue[]) {
     //if (StringToInt(newValue) == 0) { bTrackFF = false; } else { bTrackFF = true; }
     // for now, disable FF tracking toggle (always on)
 }
-public ConVarChange_BrevityFlags(Handle:cvar, const String:oldValue[], const String:newValue[]) {
+
+void ConVarChange_BrevityFlags(Handle:cvar, const String:oldValue[], const String:newValue[]) {
     iBrevityFlags = StringToInt(newValue);
     if (!(iBrevityFlags & BREV_FF)) { 
         bTrackFF = true; 
     } // force tracking on if we're showing FF
-}
-
-public ConVarChange_RUPActive(Handle:cvar, const String:oldValue[], const String:newValue[]) {
-    bRUPActive = StringToInt(newValue) != 0;
 }
 
 /*
@@ -371,7 +356,7 @@ public ConVarChange_RUPActive(Handle:cvar, const String:oldValue[], const String
 *      ==========================
 */
 
-public Action:PlayerLeftStartArea(Handle:event, const String:name[], bool:dontBroadcast)
+void PlayerLeftStartArea(Handle:event, const String:name[], bool:dontBroadcast)
 {
     // if RUP active, now we can start tracking FF
     bPlayerLeftStartArea = true;
@@ -388,7 +373,7 @@ public OnMapEnd()
     bInRound = false;
 }
 
-public void ScavRoundStart(Handle:event, const String:name[], bool:dontBroadcast)
+void ScavRoundStart(Handle:event, const String:name[], bool:dontBroadcast)
 {
     // clear mvp stats
     new i, maxplayers = MaxClients;
@@ -431,9 +416,10 @@ public void ScavRoundStart(Handle:event, const String:name[], bool:dontBroadcast
     tankSpawned = false;
 }
 
-public RoundStart_Event(Handle:event, const String:name[], bool:dontBroadcast)
+void RoundStart_Event(Handle:event, const String:name[], bool:dontBroadcast)
 {
     bPlayerLeftStartArea = false;
+    bRUPLive = false;
     
     if (!bInRound)
     {
@@ -480,7 +466,7 @@ public RoundStart_Event(Handle:event, const String:name[], bool:dontBroadcast)
     tankSpawned = false;
 }
 
-public FinaleEnd_Event(Handle:event, const String:name[], bool:dontBroadcast)
+void FinaleEnd_Event(Handle:event, const String:name[], bool:dontBroadcast)
 {
     // Co-op modes.
     if (!L4D_HasPlayerControlledZombies())
@@ -498,8 +484,7 @@ public FinaleEnd_Event(Handle:event, const String:name[], bool:dontBroadcast)
     tankSpawned = false;
 }
 
-
-public RoundEnd_Event(Handle:event, const String:name[], bool:dontBroadcast)
+void RoundEnd_Event(Handle:event, const String:name[], bool:dontBroadcast)
 {
     // Co-op modes.
     if (!L4D_HasPlayerControlledZombies())
@@ -523,6 +508,7 @@ public RoundEnd_Event(Handle:event, const String:name[], bool:dontBroadcast)
         }
     }
     
+    bRUPLive = false;
     tankSpawned = false;
 }
 
@@ -532,7 +518,7 @@ public RoundEnd_Event(Handle:event, const String:name[], bool:dontBroadcast)
 *      ==============
 */
 
-public Action:Say_Cmd(client, args)
+Action Say_Cmd(client, args)
 {
     if (!client) { return Plugin_Continue; }
     
@@ -544,7 +530,7 @@ public Action:Say_Cmd(client, args)
     return Plugin_Continue;
 }
 
-public Action:SurvivorMVP_Cmd(client, args)
+Action SurvivorMVP_Cmd(client, args)
 {
     decl String:printBuffer[4096];
     new String:strLines[8][192];
@@ -562,14 +548,17 @@ public Action:SurvivorMVP_Cmd(client, args)
         }
     }
     PrintLoserz(true, client);
+
+    return Plugin_Handled;
 }
 
-public Action:ShowMVPStats_Cmd(client, args)
+Action ShowMVPStats_Cmd(client, args)
 {
     PrintLoserz(true, client);
+    return Plugin_Handled;
 }
 
-public Action:delayedMVPPrint(Handle:timer)
+Action:delayedMVPPrint(Handle:timer)
 {
     decl String:printBuffer[4096];
     new String:strLines[8][192];
@@ -589,12 +578,12 @@ public Action:delayedMVPPrint(Handle:timer)
     CreateTimer(0.1, PrintLosers);
 }
 
-public Action:PrintLosers(Handle:timer)
+Action:PrintLosers(Handle:timer)
 {
     PrintLoserz(false, -1);
 }
 
-stock PrintLoserz(bool:bSolo, client)
+void PrintLoserz(bool:bSolo, client)
 {
     decl String:tmpBuffer[512];
     // also find the three non-mvp survivors and tell them they sucked
@@ -718,7 +707,7 @@ public OnEntityDestroyed(entity)
 /**
 * When an infected uses their ability
 */
-public Action:abilityUseEvent(Handle:event, const String:name[], bool:dontBroadcast)
+void abilityUseEvent(Handle:event, const String:name[], bool:dontBroadcast)
 {
     decl String:ability[32];
     GetEventString(event, "ability", ability, 32);
@@ -732,7 +721,7 @@ public Action:abilityUseEvent(Handle:event, const String:name[], bool:dontBroadc
 /**
 * Track pill usage
 */
-public pillsUsedEvent(Handle:event, const String:name[], bool:dontBroadcast)
+void pillsUsedEvent(Handle:event, const String:name[], bool:dontBroadcast)
 {
     new client = GetClientOfUserId(GetEventInt(event, "userid")); 
     if (client == 0 || ! IsClientInGame(client)) {
@@ -745,7 +734,7 @@ public pillsUsedEvent(Handle:event, const String:name[], bool:dontBroadcast)
 /**
 * Track boomer pops
 */
-public boomerExploded(Handle:event, const String:name[], bool:dontBroadcast)
+void boomerExploded(Handle:event, const String:name[], bool:dontBroadcast)
 {
     // We only want to track pops where the boomer didn't bile anyone
     new bool:biled = GetEventBool(event, "splashedbile");
@@ -762,7 +751,7 @@ public boomerExploded(Handle:event, const String:name[], bool:dontBroadcast)
 /**
 * Track when someone gets charged (end of charge for level, or if someone shoots you off etc.)
 */
-public chargerCarryEnd(Handle:event, const String:name[], bool:dontBroadcast)
+void chargerCarryEnd(Handle:event, const String:name[], bool:dontBroadcast)
 {
     new client = GetClientOfUserId(GetEventInt(event, "victim")); 
     if (client == 0 || ! IsClientInGame(client)) {
@@ -780,7 +769,7 @@ public chargerCarryEnd(Handle:event, const String:name[], bool:dontBroadcast)
 /**
 * Track when someone gets jockeyed.
 */
-public jockeyRide(Handle:event, const String:name[], bool:dontBroadcast)
+void jockeyRide(Handle:event, const String:name[], bool:dontBroadcast)
 {
     new client = GetClientOfUserId(GetEventInt(event, "victim")); 
     if (client == 0 || ! IsClientInGame(client)) {
@@ -798,7 +787,7 @@ public jockeyRide(Handle:event, const String:name[], bool:dontBroadcast)
 /** 
 * Track when someone gets huntered.
 */
-public hunterLunged(Handle:event, const String:name[], bool:dontBroadcast)
+void hunterLunged(Handle:event, const String:name[], bool:dontBroadcast)
 {
     new client = GetClientOfUserId(GetEventInt(event, "victim")); 
     if (client == 0 || ! IsClientInGame(client)) {
@@ -816,7 +805,7 @@ public hunterLunged(Handle:event, const String:name[], bool:dontBroadcast)
 /**
 * Track when someone gets smoked (we track when they start getting smoked, because anyone can get smoked)
 */
-public smokerChoke(Handle:event, const String:name[], bool:dontBroadcast)
+void smokerChoke(Handle:event, const String:name[], bool:dontBroadcast)
 {
     new client = GetClientOfUserId(GetEventInt(event, "victim")); 
     if (client == 0 || ! IsClientInGame(client)) {
@@ -834,14 +823,14 @@ public smokerChoke(Handle:event, const String:name[], bool:dontBroadcast)
 /**
 * When the tank spawns
 */
-public tankSpawn(Handle:event, const String:name[], bool:dontBroadcast) {
+void tankSpawn(Handle:event, const String:name[], bool:dontBroadcast) {
     tankSpawned = true;
 }
 
 /**
 * When the tank is killed
 */
-public tankKilled(Handle:event, const String:name[], bool:dontBroadcast) {
+void tankKilled(Handle:event, const String:name[], bool:dontBroadcast) {
     tankSpawned = false;
 }
 
@@ -850,7 +839,7 @@ public tankKilled(Handle:event, const String:name[], bool:dontBroadcast) {
 *      ==================
 */
 
-public PlayerHurt_Event(Handle:event, const String:name[], bool:dontBroadcast)
+void PlayerHurt_Event(Handle:event, const String:name[], bool:dontBroadcast)
 {
     new zombieClass = 0;
     
@@ -908,10 +897,10 @@ public PlayerHurt_Event(Handle:event, const String:name[], bool:dontBroadcast)
         }
         
         // Otherwise if friendly fire
-        else if (GetClientTeam(attacker) == TEAM_SURVIVOR && GetClientTeam(victim) == TEAM_SURVIVOR && bTrackFF)                // survivor on survivor action == FF
+        else if (GetClientTeam(attacker) == TEAM_SURVIVOR && GetClientTeam(victim) == TEAM_SURVIVOR && bTrackFF && !L4D_IsPlayerIncapacitated(victim))                // survivor on survivor action == FF
         {
-            if (!bRUPActive || GetEntityMoveType(victim) != MOVETYPE_NONE || bPlayerLeftStartArea) {
-                // but don't record while frozen in readyup / before leaving saferoom
+            if (bRUPLive || bPlayerLeftStartArea) {
+                // but don't record before readyup ended or before leaving saferoom if readyup is not loaded.
                 iDidFF[attacker] += damageDone;
                 iTotalFF += damageDone;
             }
@@ -935,7 +924,7 @@ public PlayerHurt_Event(Handle:event, const String:name[], bool:dontBroadcast)
 * When the infected are hurt (i.e. when a survivor hurts an SI)
 * We want to use this to track damage done to the witch.
 */
-public InfectedHurt_Event(Handle:event, const String:name[], bool:dontBroadcast)
+void InfectedHurt_Event(Handle:event, const String:name[], bool:dontBroadcast)
 {
     // catch damage done to witch
     new victimEntId = GetEventInt(event, "entityid");
@@ -963,7 +952,7 @@ public InfectedHurt_Event(Handle:event, const String:name[], bool:dontBroadcast)
     }
 }
 
-public PlayerDeath_Event(Handle:event, const String:name[], bool:dontBroadcast)
+void PlayerDeath_Event(Handle:event, const String:name[], bool:dontBroadcast)
 {
     // Get the victim details
     new zombieClass = 0;
@@ -1003,16 +992,16 @@ public PlayerDeath_Event(Handle:event, const String:name[], bool:dontBroadcast)
 }
 
 // Was the zombie a hunter?
-public bool:isHunter(zombieClass) {
+/*bool:isHunter(zombieClass) {
     return zombieClass == ZC_HUNTER;
-}
+}*/
 
-public InfectedDeath_Event(Handle:event, const String:name[], bool:dontBroadcast)
+void InfectedDeath_Event(Handle:event, const String:name[], bool:dontBroadcast)
 {
     new attackerId = GetEventInt(event, "attacker");
     new attacker = GetClientOfUserId(attackerId);
     
-    if (attackerId && IsClientAndInGame(attacker) && GetClientTeam(attacker) == TEAM_SURVIVOR)
+    if (bPlayerLeftStartArea && attackerId && IsClientAndInGame(attacker) && GetClientTeam(attacker) == TEAM_SURVIVOR)
     {
         // If the tank is up, let's store separately
         if (tankSpawned) {
@@ -1267,9 +1256,10 @@ stock getSurvivor(exclude[4])
     return 0;
 }
 
-public stripUnicode(String:testString[MAX_NAME_LENGTH])
+/* //survivor_mvp.sp(1258) : error 017: undefined symbol "MAXLENGTH"
+void stripUnicode(String:testString[MAX_NAME_LENGTH])
 {
-    new const maxlength = MAX_NAME_LENGTH;
+    new const maxlength = MAXLENGTH;
     //strcopy(testString, maxlength, sTmpString);
     sTmpString = testString;
     
@@ -1318,7 +1308,7 @@ public stripUnicode(String:testString[MAX_NAME_LENGTH])
             }
         }
     }
-}
+}*/
 
 /*
 stock bool:IsCommonInfected(iEntity)

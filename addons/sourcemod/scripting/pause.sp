@@ -35,7 +35,7 @@ public Plugin myinfo =
     name = "Pause plugin",
     author = "CanadaRox, Sir, Forgetest",
     description = "Adds pause functionality without breaking pauses, also prevents SI from spawning because of the Pause.",
-    version = "6.7",
+    version = "6.7.1",
     url = "https://github.com/SirPlease/L4D2-Competitive-Rework"
 };
 
@@ -53,8 +53,8 @@ Handle
 ConVar
     onlyEnableForce,
     pauseDelayCvar,
+    unpauseDelayCvar,
     initiatorReadyCvar,
-    l4d_ready_delay,
     pauseLimitCvar,
     serverNamerCvar;
 
@@ -63,8 +63,8 @@ Handle
     readyCountdownTimer,
     deferredPauseTimer;
 int
-    readyDelay,
-    pauseDelay;
+    pauseDelay,
+    unpauseDelay;
 bool
     isPaused,
     RoundEnd,
@@ -110,9 +110,9 @@ public void OnPluginStart()
     LoadTranslations("pause.phrases");
     onlyEnableForce = CreateConVar("sm_onlyforce", "0", "Only allow for force pause and unpause functionality");
     pauseDelayCvar = CreateConVar("sm_pausedelay", "0", "Delay to apply before a pause happens.  Could be used to prevent Tactical Pauses", FCVAR_NONE, true, 0.0);
+    unpauseDelayCvar = CreateConVar("sm_unpausedelay", "3", "Delay to apply before an unpause happens.", FCVAR_NONE, true, 0.0);
     initiatorReadyCvar = CreateConVar("sm_initiatorready", "0", "Require or not the pause initiator should ready before unpausing the game", FCVAR_NONE, true, 0.0);
     pauseLimitCvar = CreateConVar("sm_pauselimit", "0", "Limits the amount of pauses a player can do in a single game. Set to 0 to disable.", FCVAR_NONE, true, 0.0);
-    l4d_ready_delay = FindConVar("l4d_ready_delay");
 	
     playerPauseCount = new StringMap();
 
@@ -198,7 +198,7 @@ public void OnMapEnd()
     Unpause(false);
 }
 
-public void RoundEnd_Event(Event event, const char[] name, bool dontBroadcast)
+void RoundEnd_Event(Event event, const char[] name, bool dontBroadcast)
 {
     if (deferredPauseTimer != null)
     {
@@ -208,7 +208,7 @@ public void RoundEnd_Event(Event event, const char[] name, bool dontBroadcast)
     Unpause(false);
 }
 
-public void RoundStart_Event(Event event, const char[] name, bool dontBroadcast)
+void RoundStart_Event(Event event, const char[] name, bool dontBroadcast)
 {
     RoundEnd = false;
     initiatorId = 0;
@@ -218,7 +218,7 @@ public void RoundStart_Event(Event event, const char[] name, bool dontBroadcast)
 // Commands
 // ======================================
 
-public Action Pause_Cmd(int client, int args)
+Action Pause_Cmd(int client, int args)
 {
     if (onlyEnableForce.BoolValue)
         return Plugin_Continue;
@@ -257,7 +257,7 @@ public Action Pause_Cmd(int client, int args)
     return Plugin_Handled;
 }
 
-public Action PauseDelay_Timer(Handle timer)
+Action PauseDelay_Timer(Handle timer)
 {
     if (pauseDelay == 0)
     {
@@ -273,7 +273,7 @@ public Action PauseDelay_Timer(Handle timer)
     return Plugin_Continue;
 }
 
-public Action ForcePause_Cmd(int client, int args)
+Action ForcePause_Cmd(int client, int args)
 {
     if (!isPaused)
     {
@@ -292,7 +292,7 @@ public Action ForcePause_Cmd(int client, int args)
     return Plugin_Handled;
 }
 
-public Action Unpause_Cmd(int client, int args)
+Action Unpause_Cmd(int client, int args)
 {
     if (onlyEnableForce.BoolValue)
         return Plugin_Continue;
@@ -343,7 +343,7 @@ public Action Unpause_Cmd(int client, int args)
     return Plugin_Handled;
 }
 
-public Action Unready_Cmd(int client, int args)
+Action Unready_Cmd(int client, int args)
 {
     if (onlyEnableForce.BoolValue)
         return Plugin_Continue;
@@ -387,7 +387,7 @@ public Action Unready_Cmd(int client, int args)
     return Plugin_Handled;
 }
 
-public Action ForceUnpause_Cmd(int client, int args)
+Action ForceUnpause_Cmd(int client, int args)
 {
     if (isPaused)
     {
@@ -399,7 +399,7 @@ public Action ForceUnpause_Cmd(int client, int args)
     return Plugin_Handled;
 }
 
-public Action ToggleReady_Cmd(int client, int args)
+Action ToggleReady_Cmd(int client, int args)
 {
     if (onlyEnableForce.BoolValue)
         return Plugin_Continue;
@@ -450,7 +450,7 @@ void AttemptPause()
     }
 }
 
-public Action DeferredPause_Timer(Handle timer)
+Action DeferredPause_Timer(Handle timer)
 {
     if (!IsSurvivorReviving())
     {
@@ -566,7 +566,7 @@ void Unpause(bool real = true)
 // Pause Panel
 // ======================================
 
-public Action Show_Cmd(int client, int args)
+Action Show_Cmd(int client, int args)
 {
     if (isPaused)
     {
@@ -577,7 +577,7 @@ public Action Show_Cmd(int client, int args)
     return Plugin_Handled;
 }
 
-public Action Hide_Cmd(int client, int args)
+Action Hide_Cmd(int client, int args)
 {
     if (isPaused)
     {
@@ -588,7 +588,7 @@ public Action Hide_Cmd(int client, int args)
     return Plugin_Handled;
 }
 
-public Action MenuRefresh_Timer(Handle timer)
+Action MenuRefresh_Timer(Handle timer)
 {
     if (isPaused)
     {
@@ -598,7 +598,7 @@ public Action MenuRefresh_Timer(Handle timer)
     return Plugin_Stop;
 }
 
-public int DummyHandler(Menu menu, MenuAction action, int param1, int param2) { return 1; }
+int DummyHandler(Menu menu, MenuAction action, int param1, int param2) { return 1; }
 
 void UpdatePanel()
 {
@@ -690,14 +690,14 @@ void InitiateLiveCountdown()
     if (readyCountdownTimer == null)
     {
         CPrintToChatAll("%t %t", "Tag", "CountdownCancelNotify");
-        readyDelay = l4d_ready_delay.IntValue;
+        unpauseDelay = unpauseDelayCvar.IntValue;
         readyCountdownTimer = CreateTimer(1.0, ReadyCountdownDelay_Timer, _, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
     }
 }
 
-public Action ReadyCountdownDelay_Timer(Handle timer)
+Action ReadyCountdownDelay_Timer(Handle timer)
 {
-    if (readyDelay == 0)
+    if (unpauseDelay == 0)
     {
         Unpause();
         PrintHintTextToAll("%t", "GameisLive");
@@ -705,8 +705,8 @@ public Action ReadyCountdownDelay_Timer(Handle timer)
     }
     else
     {
-        CPrintToChatAll("%t %t", "Tag", "CountdownReadyDelay", readyDelay);
-        readyDelay--;
+        CPrintToChatAll("%t %t", "Tag", "CountdownReadyDelay", unpauseDelay);
+        unpauseDelay--;
     }
     return Plugin_Continue;
 }
@@ -733,7 +733,7 @@ void CancelFullReady(int client)
 // Spectate Fix
 // ======================================
 
-public Action Spectate_Cmd(int client, int args)
+Action Spectate_Cmd(int client, int args)
 {
     if (SpecTimer[client] != null)
     {
@@ -745,7 +745,7 @@ public Action Spectate_Cmd(int client, int args)
     return Plugin_Handled;
 }
 
-public Action SecureSpec(Handle timer, any client)
+Action SecureSpec(Handle timer, any client)
 {
     SpecTimer[client] = null;
     return Plugin_Stop;
@@ -775,7 +775,7 @@ void ToggleCommandListeners(bool enable)
     }
 }
 
-public Action Callvote_Callback(int client, char[] command, int argc)
+Action Callvote_Callback(int client, char[] command, int argc)
 {
     if (GetClientTeam(client) == L4D2Team_Spectator)
     {
@@ -840,7 +840,7 @@ public Action Callvote_Callback(int client, char[] command, int argc)
     return Plugin_Handled;
 }
 
-public Action Say_Callback(int client, char[] command, int argc)
+Action Say_Callback(int client, char[] command, int argc)
 {
     if (isPaused)
     {
@@ -864,7 +864,7 @@ public Action Say_Callback(int client, char[] command, int argc)
     return Plugin_Continue;
 }
 
-public Action TeamSay_Callback(int client, char[] command, int argc)
+Action TeamSay_Callback(int client, char[] command, int argc)
 {
     if (isPaused)
     {
@@ -881,7 +881,7 @@ public Action TeamSay_Callback(int client, char[] command, int argc)
     return Plugin_Continue;
 }
 
-public Action Unpause_Callback(int client, char[] command, int argc)
+Action Unpause_Callback(int client, char[] command, int argc)
 {
     return (isPaused) ? Plugin_Handled : Plugin_Continue;
 }
@@ -890,7 +890,7 @@ public Action Unpause_Callback(int client, char[] command, int argc)
 // Natives
 // ======================================
 
-public int Native_IsInPause(Handle plugin, int numParams)
+int Native_IsInPause(Handle plugin, int numParams)
 {
     return isPaused;
 }

@@ -2,6 +2,7 @@
 #pragma newdecls required
 #include <sourcemod>
 #include <sdktools>
+#include <left4dhooks>
 
 char sSecondary[MAXPLAYERS + 1][64];
 char sMeleeScript[MAXPLAYERS + 1][64];
@@ -59,7 +60,7 @@ public void OnClientDisconnect(int client)
 	sMeleeScript[client] = MELEE_NONE;
 }
 
-public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	for (int i = 1; i <= MaxClients; i++)
 	{
@@ -74,7 +75,7 @@ public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 *                          THEIR SECONDARY AND MELEE SCRIPT
 *                  
 *****************************************************************************************/
-public void Event_OnPlayerReplacedByBot(Event event, const char[] name, bool dontBroadcast)
+void Event_OnPlayerReplacedByBot(Event event, const char[] name, bool dontBroadcast)
 {
 	int bot = GetClientOfUserId(event.GetInt("bot"))
 	int player = GetClientOfUserId(event.GetInt("player"))
@@ -87,7 +88,7 @@ public void Event_OnPlayerReplacedByBot(Event event, const char[] name, bool don
 	if (bDebug) CPrintToChatAll("{green}[{olive}OnPlayerReplacedByBot{green}] {default}- {blue}BOT {default}replaced {blue}%N {default}({green}Secondary: {olive}%s{default})", player, sSecondary[bot]);
 }
 
-public void Event_OnBotReplacedByPlayer(Event event, const char[] name, bool dontBroadcast)
+void Event_OnBotReplacedByPlayer(Event event, const char[] name, bool dontBroadcast)
 {
 	int bot = GetClientOfUserId(event.GetInt("bot"))
 	int player = GetClientOfUserId(event.GetInt("player"))
@@ -105,7 +106,7 @@ public void Event_OnBotReplacedByPlayer(Event event, const char[] name, bool don
 *                   THIS FIRES AND STORES A PLAYER'S SECONDARY
 *                  
 *****************************************************************************************/
-public void Event_OnPlayerUse(Event event, const char[] name, bool dontBroadcast) 
+void Event_OnPlayerUse(Event event, const char[] name, bool dontBroadcast) 
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	int targetid = event.GetInt("targetid");
@@ -113,10 +114,15 @@ public void Event_OnPlayerUse(Event event, const char[] name, bool dontBroadcast
 	if (IsValidSurvivor(client) && IsValidEntity(targetid)) 
 	{
 		char sClassname[32];
-		GetEntityClassname(targetid, sClassname, sizeof(sClassname))
+		GetEntityClassname(targetid, sClassname, sizeof(sClassname));
 
-		if (StrContains(sClassname, "pistol") != -1 ||
-		StrContains(sClassname, "melee") != -1)
+		if (StrContains(sClassname, "weapon_spawn") != -1)
+		{
+			L4D2WeaponId weaponID = view_as<L4D2WeaponId>(GetEntProp(targetid, Prop_Send, "m_weaponID"));
+			L4D2_GetWeaponNameByWeaponId(weaponID, sClassname, sizeof(sClassname));
+		}
+	
+		if (StrContains(sClassname, "pistol") != -1 || StrContains(sClassname, "melee") != -1)
 		{
 			// We do an actual check of what the client has here because we deal with limitations in certain configs.
 			// The limitation would cause the secondary to be set on the client while the client didn't even equip it.
@@ -143,7 +149,7 @@ public void Event_OnPlayerUse(Event event, const char[] name, bool dontBroadcast
 *                     IN CASE HE/SHE DIES WHILE INCAPACITATED
 *                  
 *****************************************************************************************/
-public Action Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadcast)
+Action Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadcast)
 {
 	int victim = GetClientOfUserId(event.GetInt("userid"));
 	if (IsValidSurvivor(victim))
@@ -166,7 +172,7 @@ bool IsValidSurvivor(int client)
 void SpawnSecondary(int client)
 {
 	int weapon;
-	
+
 	if (StrEqual(sSecondary[client], SECONDARY_PISTOL)) weapon = CreateEntityByName("weapon_pistol");
 	else if (StrEqual(sSecondary[client], SECONDARY_PISTOL_MAGNUM)) weapon = CreateEntityByName("weapon_pistol_magnum");
 	else 
@@ -203,7 +209,7 @@ void DetermineMeleeScript(int client, int iWeaponIndex)
 	if (bDebug) CPrintToChatAll("{green}[{olive}DetermineMeleeScript{green}] {default}- {blue}%N {default}has {olive}%s {default}- MS: {olive}%s", client, buffScriptName, sMeleeScript[client]);
 }
 
-public void DebugChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+void DebugChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
 	bDebug = l4d2_drop_secondary_debug.BoolValue;
 	CPrintToChatAll("{blue}[{default}L4D2 Drop Secondary{blue}]{default}: {green}Debugging {olive}%s", bDebug ? "Enabled" : "Disabled");

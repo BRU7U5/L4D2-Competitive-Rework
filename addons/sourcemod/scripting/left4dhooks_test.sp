@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION		"1.141"
+#define PLUGIN_VERSION		"1.151"
 
 /*=======================================================================================
 	Plugin Info:
@@ -54,6 +54,7 @@ bool g_bLibraryActive;
 bool g_bTestForwards =		true;	// To enable forwards testing
 int g_iForwardsMax;					// Total forwards we expect to see
 int g_iForwards;
+float g_fPipeBomb[2048];
 
 
 
@@ -351,6 +352,14 @@ Action sm_l4dd(int client, int args)
 		Uncomment the things you want to test. All disabled by default.
 		Must test individual sections on their own otherwise you'll receive errors about symbols already defined..
 	*/
+
+
+	// PrintToServer("L4D_IsInIntro %d", L4D_IsInIntro()); //WORKING
+
+
+
+	// L4D_StopBeingRevived(client);
+	// PrintToChatAll("L4D_IsInLastCheckpoint: %d", L4D_IsInLastCheckpoint(client));
 
 
 
@@ -1920,7 +1929,7 @@ Action sm_l4dd(int client, int args)
 
 	if( g_bLeft4Dead2 )
 	{
-		// Test attribute tag mis-match
+		// Test attribute tag mismatch
 		// PrintToServer("L4D2_GetIntWeaponAttribute_DD: %d",		L4D2_GetIntWeaponAttribute("weapon_smg", L4D2FWA_MaxPlayerSpeed));
 
 		int scores[2];
@@ -2804,6 +2813,18 @@ public void L4D_OnTakeOverBot_PostHandled(int client, bool success)
 		called++;
 
 		ForwardCalled("\"L4D_OnTakeOverBot_PostHandled\" %d (%N). Success: %d", client, client, success);
+	}
+}
+
+public void L4D_OnFinishIntro()
+{
+	static int called;
+	if( called < MAX_CALLS )
+	{
+		if( called == 0 ) g_iForwards++;
+		called++;
+
+		ForwardCalled("\"L4D_OnFinishIntro\"");
 	}
 }
 
@@ -4263,6 +4284,8 @@ public void L4D_PipeBombProjectile_Post(int client, int projectile, const float 
 
 		ForwardCalled("\"L4D_PipeBombProjectile_Post\" %d (Grenade = %d) pos(%0.1f %0.1f %0.1f) ang(%0.1f %0.1f %0.1f) vel(%0.1f %0.1f %0.1f) rot(%0.1f %0.1f %0.1f)", client, projectile, vecPos[0], vecPos[1], vecPos[2], vecAng[0], vecAng[1], vecAng[2], vecVel[0], vecVel[1], vecVel[2], vecRot[0], vecRot[1], vecRot[2]);
 	}
+
+	g_fPipeBomb[projectile] = GetGameTime(); // Used to track if the forwards "L4D_PipeBomb_Detonate*" are triggered from an actual PipeBomb or from a breakable prop (propane tank, oxygen tank etc)
 }
 
 public void L4D_PipeBombProjectile_PostHandled(int client, int projectile, const float vecPos[3], const float vecAng[3], const float vecVel[3], const float vecRot[3])
@@ -4462,6 +4485,24 @@ public Action L4D_PipeBomb_Detonate(int entity, int client)
 		ForwardCalled("\"L4D_PipeBomb_Detonate\" %d (%N) (Grenade = %d)", client, client > 0 && client <= MaxClients ? client : 0, entity);
 	}
 
+
+
+	// Detect if a PipeBomb or breakable prop (propane tank, oxygen tank etc) has exploded
+	// /*
+	if( g_fPipeBomb[entity] + 0.1 >= GetGameTime() ) // Matching the time with == is probably fine, but in case of rare moments when detonation happens slightly later, we can do this with 0.1 seconds leeway
+	{
+		// Breakable prop detonating
+		PrintToServer(" > L4DD: \"L4D_PipeBomb_Detonate\" %d (%N) (Grenade = %d) - Breakable Prop explosion", client, client > 0 && client <= MaxClients ? client : 0, entity);
+	}
+	else
+	{
+		PrintToServer(" > L4DD: \"L4D_PipeBomb_Detonate\" %d (%N) (Grenade = %d) - PipeBomb explosion", client, client > 0 && client <= MaxClients ? client : 0, entity);
+		// Grenade detonating
+	}
+	// */
+
+
+
 	// WORKS - block grenade detonating
 	// return Plugin_Handled;
 
@@ -4478,6 +4519,24 @@ public void L4D_PipeBomb_Detonate_Post(int entity, int client)
 
 		ForwardCalled("\"L4D_PipeBomb_Detonate_Post\" %d (%N) (Grenade = %d)", client, client > 0 && client <= MaxClients ? client : 0, entity);
 	}
+
+
+
+	// Detect if a PipeBomb or breakable prop (propane tank, oxygen tank etc) has exploded
+	// /*
+	if( g_fPipeBomb[entity] + 0.1 >= GetGameTime() ) // Matching the time with == is probably fine, but in case of rare moments when detonation happens slightly later, we can do this with 0.1 seconds leeway
+	{
+		// Breakable prop detonating
+		PrintToServer(" > L4DD: \"L4D_PipeBomb_Detonate_Post\" %d (%N) (Grenade = %d) - Breakable Prop explosion", client, client > 0 && client <= MaxClients ? client : 0, entity);
+	}
+	else
+	{
+		PrintToServer(" > L4DD: \"L4D_PipeBomb_Detonate_Post\" %d (%N) (Grenade = %d) - PipeBomb explosion", client, client > 0 && client <= MaxClients ? client : 0, entity);
+		// Grenade detonating
+	}
+
+	g_fPipeBomb[entity] = 0.0;
+	// */
 }
 
 public void L4D_PipeBomb_Detonate_PostHandled(int entity, int client)
@@ -4490,6 +4549,24 @@ public void L4D_PipeBomb_Detonate_PostHandled(int entity, int client)
 
 		ForwardCalled("\"L4D_PipeBomb_Detonate_PostHandled\" %d (%N) (Grenade = %d)", client, client > 0 && client <= MaxClients ? client : 0, entity);
 	}
+
+
+
+	// Detect if a PipeBomb or breakable prop (propane tank, oxygen tank etc) has exploded
+	// /*
+	if( g_fPipeBomb[entity] + 0.1 >= GetGameTime() ) // Matching the time with == is probably fine, but in case of rare moments when detonation happens slightly later, we can do this with 0.1 seconds leeway
+	{
+		// Breakable prop detonating
+		PrintToServer(" > L4DD: \"L4D_PipeBomb_Detonate_PostHandled\" %d (%N) (Grenade = %d) - Breakable Prop explosion", client, client > 0 && client <= MaxClients ? client : 0, entity);
+	}
+	else
+	{
+		PrintToServer(" > L4DD: \"L4D_PipeBomb_Detonate_PostHandled\" %d (%N) (Grenade = %d) - PipeBomb explosion", client, client > 0 && client <= MaxClients ? client : 0, entity);
+		// Grenade detonating
+	}
+
+	g_fPipeBomb[entity] = 0.0;
+	// */
 }
 
 public Action L4D2_VomitJar_Detonate(int entity, int client)
@@ -4612,7 +4689,9 @@ public Action L4D1_FirstAidKit_StartHealing(int client, int entity)
 		called++;
 
 		// Better to use FindConVar in plugin start, hook the convar for change and store the value in a variable, this is just an example:
-		float range = FindConVar("player_use_radius").FloatValue;
+		float range;
+		if( g_bLeft4Dead2 ) range = FindConVar("player_use_radius").FloatValue;
+		else range = 96.0; // L4D1 doesn't have this cvar, maybe another, don't know name
 
 		int target = L4D_FindUseEntity(client, true, range); // "m_healTarget" is not set at this point, must call this native if you wish to identify the target before healing
 		if( target < 0 || target > MaxClients ) target = 0;
@@ -4644,7 +4723,7 @@ public void L4D1_FirstAidKit_StartHealing_Post(int client, int entity)
 		int target = GetEntPropEnt(client, Prop_Send, "m_healTarget"); // Target is only valid in post hook
 		if( target == -1 ) target = 0;
 
-		ForwardCalled("\"L4D2_BackpackItem_StartAction_Post\" %d (%N) - MedKit = %d. Healing: %d (%N)", client, client, entity, target, target);
+		ForwardCalled("\"L4D1_FirstAidKit_StartHealing_Post\" %d (%N) - MedKit = %d. Healing: %d (%N)", client, client, entity, target, target);
 	}
 
 	// Reset healing duration:
@@ -4661,6 +4740,62 @@ public void L4D1_FirstAidKit_StartHealing_PostHandled(int client, int entity)
 		called++;
 
 		ForwardCalled("\"L4D1_FirstAidKit_StartHealing_PostHandled\" %d (%N) - MedKit = %d", client, client, entity);
+	}
+}
+
+public Action L4D2_OnStartUseAction(any action, int client, int target)
+{
+	static int called;
+	if( called < MAX_CALLS )
+	{
+		if( called == 0 ) g_iForwards++;
+		called++;
+
+		if( action == L4D2UseAction_DeployIncendiary || action == L4D2UseAction_DeployExplosive )
+		{
+			target = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+		}
+
+		ForwardCalled("\"L4D2_OnStartUseAction\" %d (%N) - Target: %d. Action: %d", client, client, target, action);
+	}
+
+	// WORKS - Block action
+	// return Plugin_Handled;
+
+	return Plugin_Continue;
+}
+
+public void L4D2_OnStartUseAction_Post(any action, int client, int target)
+{
+	static int called;
+	if( called < MAX_CALLS )
+	{
+		if( called == 0 ) g_iForwards++;
+		called++;
+
+		if( action == L4D2UseAction_DeployIncendiary || action == L4D2UseAction_DeployExplosive )
+		{
+			target = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+		}
+
+		ForwardCalled("\"L4D2_OnStartUseAction_Post\" %d (%N) - Target: %d. Action: %d", client, client, target, action);
+	}
+}
+
+public void L4D2_OnStartUseAction_PostHandled(any action, int client, int target)
+{
+	static int called;
+	if( called < MAX_CALLS )
+	{
+		if( called == 0 ) g_iForwards++;
+		called++;
+
+		if( action == L4D2UseAction_DeployIncendiary || action == L4D2UseAction_DeployExplosive )
+		{
+			target = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+		}
+
+		ForwardCalled("\"L4D2_OnStartUseAction_PostHandled\" %d (%N) - Target: %d. Action: %d", client, client, target, action);
 	}
 }
 
@@ -5010,6 +5145,8 @@ public Action L4D2_OnChooseVictim_Pre(int specialInfected, int &lastTarget)
 	// return Plugin_Changed;
 
 	// No target - the special will stand still.
+	// return Plugin_Handled;
+
 	return Plugin_Continue;
 }
 

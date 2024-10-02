@@ -12,6 +12,7 @@
 #include <sourcemod>
 #include <sdktools>
 #include <sdkhooks>
+#include <colors>
 #define L4D2UTIL_STOCKS_ONLY 1
 #include <l4d2util>
 
@@ -49,12 +50,13 @@ public Plugin myinfo =
 	name = "L4D Weapon Limits",
 	author = "CanadaRox, Stabby, Forgetest, A1m`, robex",
 	description = "Restrict weapons individually or together",
-	version = "2.2.1",
+	version = "2.2.2",
 	url = "https://github.com/SirPlease/L4D2-Competitive-Rework"
 };
 
 public void OnPluginStart()
 {
+	LoadTranslation("l4d_weapon_limits.phrases");
 	InitSDKCall();
 	L4D2Weapons_Init();
 
@@ -120,7 +122,7 @@ public void OnMapStart()
 	PrecacheSound(SOUND_NAME);
 }
 
-public void ClearUp(Event hEvent, const char[] name, bool dontBroadcast)
+void ClearUp(Event hEvent, const char[] name, bool dontBroadcast)
 {
 	for (int i = 1; i <= MaxClients; i++) {
 		bIsIncappedWithMelee[i] = false;
@@ -138,7 +140,7 @@ public void OnClientDisconnect(int client)
 	SDKUnhook(client, SDKHook_WeaponCanUse, Hook_WeaponCanUse);
 }
 
-public Action AddLimit_Cmd(int args)
+Action AddLimit_Cmd(int args)
 {
 	if (bIsLocked) {
 		PrintToServer("Limits have been locked !");
@@ -182,7 +184,7 @@ public Action AddLimit_Cmd(int args)
 	return Plugin_Handled;
 }
 
-public Action LockLimits_Cmd(int args)
+Action LockLimits_Cmd(int args)
 {
 	if (bIsLocked) {
 		PrintToServer("Weapon limits already locked !");
@@ -195,7 +197,7 @@ public Action LockLimits_Cmd(int args)
 	return Plugin_Handled;
 }
 
-public Action ClearLimits_Cmd(int args)
+Action ClearLimits_Cmd(int args)
 {
 	if (!bIsLocked) {
 		return Plugin_Handled;
@@ -212,7 +214,7 @@ public Action ClearLimits_Cmd(int args)
 	return Plugin_Handled;
 }
 
-public Action Hook_WeaponCanUse(int client, int weapon)
+Action Hook_WeaponCanUse(int client, int weapon)
 {
 	// TODO: There seems to be an issue that this hook will be constantly called
 	//       when client with no weapon on equivalent slot just eyes or walks on it.
@@ -278,7 +280,7 @@ public Action Hook_WeaponCanUse(int client, int weapon)
 	return Plugin_Continue;
 }
 
-public void OnIncap(Event event, const char[] name, bool dontBroadcast)
+void OnIncap(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 
@@ -293,7 +295,7 @@ public void OnIncap(Event event, const char[] name, bool dontBroadcast)
 	}
 }
 
-public void OnRevive(Event event, const char[] name, bool dontBroadcast)
+void OnRevive(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("subject"));
 
@@ -304,7 +306,7 @@ public void OnRevive(Event event, const char[] name, bool dontBroadcast)
 	bIsIncappedWithMelee[client] = false;
 }
 
-public void OnDeath(Event event, const char[] name, bool dontBroadcast)
+void OnDeath(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 
@@ -315,7 +317,7 @@ public void OnDeath(Event event, const char[] name, bool dontBroadcast)
 	bIsIncappedWithMelee[client] = false;
 }
 
-public void OnBotReplacedPlayer(Event event, const char[] name, bool dontBroadcast)
+void OnBotReplacedPlayer(Event event, const char[] name, bool dontBroadcast)
 {
 	int bot = GetClientOfUserId(event.GetInt("bot"));
 
@@ -329,7 +331,7 @@ public void OnBotReplacedPlayer(Event event, const char[] name, bool dontBroadca
 	bIsIncappedWithMelee[player] = false;
 }
 
-public void OnPlayerReplacedBot(Event event, const char[] name, bool dontBroadcast)
+void OnPlayerReplacedBot(Event event, const char[] name, bool dontBroadcast)
 {
 	int player = GetClientOfUserId(event.GetInt("player"));
 
@@ -373,7 +375,7 @@ void denyWeapon(int wep_slot, LimitArrayEntry arrayEntry, int weapon, int client
 		&& g_iLastPrintTickCount[client] != iLastTick
 	) {
 		//CPrintToChat(client, "{blue}[{default}Weapon Limits{blue}]{default} This weapon group has reached its max of {green}%d", arrayEntry.LAE_iLimit);
-		PrintToChat(client, "\x01[\x05Weapon Limits\x01] This weapon group has reached its max of \x04%d\x01!", arrayEntry.LAE_iLimit);
+		CPrintToChat(client, "%t %t", "Tag", "Full", arrayEntry.LAE_iLimit);
 		EmitSoundToClient(client, SOUND_NAME);
 
 		g_iWeaponAlreadyGiven[client][weapon] = iWeaponRef;
@@ -583,3 +585,23 @@ void CTerrorWeapon::DefaultTouch(CBasePlayer *pOther)
 	}
 }
 */
+
+/**
+ * Check if the translation file exists
+ *
+ * @param translation	Translation name.
+ * @noreturn
+ */
+stock void LoadTranslation(const char[] translation)
+{
+	char
+		sPath[PLATFORM_MAX_PATH],
+		sName[64];
+
+	Format(sName, sizeof(sName), "translations/%s.txt", translation);
+	BuildPath(Path_SM, sPath, sizeof(sPath), sName);
+	if (!FileExists(sPath))
+		SetFailState("Missing translation file %s.txt", translation);
+
+	LoadTranslations(translation);
+}

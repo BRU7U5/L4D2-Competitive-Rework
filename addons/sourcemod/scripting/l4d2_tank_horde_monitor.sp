@@ -49,6 +49,7 @@ public Plugin myinfo =
 
 public void OnPluginStart()
 {
+	LoadTranslation("l4d2_tank_horde_monitor.phrases");
 	InitGameData();
 	
 	g_hBypassFlowDistance = FindConVar("director_tank_bypass_max_flow_travel");
@@ -87,7 +88,7 @@ void InitGameData()
 	delete hDamedata2;
 }
 
-public void RoundStartEvent(Event hEvent, const char[] name, bool dontBroadcast)
+void RoundStartEvent(Event hEvent, const char[] name, bool dontBroadcast)
 {
 	ResetWarnings();
 	TimerCleanUp();
@@ -96,7 +97,7 @@ public void RoundStartEvent(Event hEvent, const char[] name, bool dontBroadcast)
 	fProgressFlowPercent = 0.0;
 }
 
-public void RoundEndEvent(Event hEvent, const char[] name, bool dontBroadcast)
+void RoundEndEvent(Event hEvent, const char[] name, bool dontBroadcast)
 {
 	ResetWarnings();
 	TimerCleanUp();
@@ -114,7 +115,7 @@ public void OnMapEnd()
 	fProgressFlowPercent = 0.0;
 }
 
-public void TankSpawn(Event event, const char[] name, bool dontBroadcast) 
+void TankSpawn(Event event, const char[] name, bool dontBroadcast) 
 {
 	if (!tankInPlay){
 		tankInPlay = true;
@@ -129,7 +130,7 @@ public void TankSpawn(Event event, const char[] name, bool dontBroadcast)
 	}
 }
 
-public void TankDeath(Event event, const char[] name, bool dontBroadcast)
+void TankDeath(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(GetEventInt(event, "userid"));
 	if (client > 0 && IsInfected(client) && IsTank(client)) {
@@ -145,7 +146,7 @@ public void OnClientDisconnect(int client)
 	}
 }
 
-public Action Timer_CheckTank(Handle timer)
+Action Timer_CheckTank(Handle timer)
 {
 	int tankclient = FindTankClient();
 	if (!tankclient || !IsPlayerAlive(tankclient)) {
@@ -156,17 +157,17 @@ public Action Timer_CheckTank(Handle timer)
 	return Plugin_Stop;
 }
 
-public void AnnounceTankSpawn()
+void AnnounceTankSpawn()
 {
 	fProgressFlowPercent = GetFlowUntilBypass(fFurthestFlow, fBypassFlow);
-	CPrintToChatAll("<{olive}Horde{default}> Horde has {blue}paused{default} due to tank in play! Progressing by {blue}%0.1f%%{default} will start the horde.", fProgressFlowPercent);
+	CPrintToChatAll("%t %t", "Tag", "TankPlay", fProgressFlowPercent);
 	announcedTankSpawn = true;
 
 	// Begin repeating flow checker
 	g_hFlowCheckTimer = CreateTimer(2.0, FlowCheckTimer, _, TIMER_REPEAT);
 }
 
-public Action FlowCheckTimer(Handle hTimer)
+Action FlowCheckTimer(Handle hTimer)
 {
 	if (!tankInPlay || announcedHordeResume || announcedHordeMax){
 		g_hFlowCheckTimer = null;
@@ -186,7 +187,7 @@ public Action FlowCheckTimer(Handle hTimer)
 
 	if (fProgressFlowPercent - fWarningPercent >= 1.0){
 		fProgressFlowPercent = fWarningPercent;
-		CPrintToChatAll("<{olive}Horde{default}> {blue}%0.1f%%{default} left until horde starts...", fWarningPercent);
+		CPrintToChatAll("%t %t", "Tag", "UntilHordeStarts", fWarningPercent);
 	}
 
 	return Plugin_Continue;
@@ -224,7 +225,7 @@ public Action L4D_OnSpawnMob(int &amount)
 			if (!announcedHordeResume && tankInPlayDelay && fPushAmount >= 0.05){
 				fPushWarningPercent = fPushAmount;
 				int iPushPercent = RoundToNearest(fPushAmount * 100.0);
-				CPrintToChatAll("<{olive}Horde{default}> Horde has {blue}resumed{default} at {green}%i%% strength{default}, pushing will increase the horde.", iPushPercent);
+				CPrintToChatAll("%t %t", "Tag", "HordeResumed", iPushPercent);
 				announcedHordeResume = true;
 			}
 
@@ -232,12 +233,12 @@ public Action L4D_OnSpawnMob(int &amount)
 			if (fPushAmount - fPushWarningPercent >= 0.20 && fPushAmount != 1.0 && announcedHordeResume){
 				fPushWarningPercent = fPushAmount;
 				int iPushPercent = RoundToNearest(fPushAmount * 100.0);
-				CPrintToChatAll("<{olive}Horde{default}> Horde is at {green}%i%% strength{default}...", iPushPercent);
+				CPrintToChatAll("%t %t", "Tag", "HordeStrength", iPushPercent);
 			}
 
 			// Have survivors have pushed past the extra distance we allow?
 			if (fPushAmount == 1.0){
-				CPrintToChatAll("<{olive}Horde{default}> Survivors have pushed too far, horde is at {green}100%% strength{default}!");
+				CPrintToChatAll("%t %t", "Tag", "HordeVeryStrength");
 				announcedHordeMax = true;
 			}
 
@@ -312,7 +313,7 @@ float GetFlowUntilBypass(float fCurrentFlowValue, float fBypassFlowValue)
 	return result;
 }
 
-public void TimerCleanUp()
+void TimerCleanUp()
 {
 	if (g_hFlowCheckTimer != null){
 		delete g_hFlowCheckTimer;
@@ -320,7 +321,7 @@ public void TimerCleanUp()
 	}
 }
 
-public void ResetWarnings()
+void ResetWarnings()
 {
 	tankInPlay = false;
 	tankInPlayDelay = false;
@@ -328,4 +329,24 @@ public void ResetWarnings()
 	announcedHordeResume = false;
 	announcedHordeMax = false;
 	fPushWarningPercent = 0.0;
+}
+
+/**
+ * Check if the translation file exists
+ *
+ * @param translation	Translation name.
+ * @noreturn
+ */
+stock void LoadTranslation(const char[] translation)
+{
+	char
+		sPath[PLATFORM_MAX_PATH],
+		sName[64];
+
+	Format(sName, sizeof(sName), "translations/%s.txt", translation);
+	BuildPath(Path_SM, sPath, sizeof(sPath), sName);
+	if (!FileExists(sPath))
+		SetFailState("Missing translation file %s.txt", translation);
+
+	LoadTranslations(translation);
 }

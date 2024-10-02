@@ -344,6 +344,18 @@ void LoadGameData()
 			LogError("Failed to create SDKCall: \"CDirector::HasAnySurvivorLeftSafeArea\" (%s)", g_sSystem);
 	}
 
+	StartPrepSDKCall(SDKCall_Entity);
+	if( PrepSDKCall_SetFromConf(hGameData, SDKConf_Signature, "CBaseTrigger::IsTouching") == false )
+	{
+		LogError("Failed to find signature: \"CBaseTrigger::IsTouching\" (%s)", g_sSystem);
+	} else {
+		PrepSDKCall_AddParameter(SDKType_CBaseEntity, SDKPass_Pointer);
+		PrepSDKCall_SetReturnInfo(SDKType_Bool, SDKPass_Plain);
+		g_hSDK_CBaseTrigger_IsTouching = EndPrepSDKCall();
+		if( g_hSDK_CBaseTrigger_IsTouching == null )
+			LogError("Failed to create SDKCall: \"CBaseTrigger::IsTouching\" (%s)", g_sSystem);
+	}
+
 	/*
 	StartPrepSDKCall(SDKCall_Raw);
 	if( PrepSDKCall_SetFromConf(hGameData, SDKConf_Signature, "CDirector::IsAnySurvivorInStartArea") == false )
@@ -401,7 +413,7 @@ void LoadGameData()
 		if( g_hSDK_TerrorNavMesh_GetLastCheckpoint == null )
 			LogError("Failed to create SDKCall: \"TerrorNavMesh::GetLastCheckpoint\" (%s)", g_sSystem);
 	}
-	*/
+	// */
 
 	if( g_bLeft4Dead2 )
 	{
@@ -429,7 +441,7 @@ void LoadGameData()
 			if( g_hSDK_TerrorNavMesh_IsInExitCheckpoint_NoLandmark == null )
 				LogError("Failed to create SDKCall: \"TerrorNavMesh::IsInExitCheckpoint_NoLandmark\" (%s)", g_sSystem);
 		}
-		*/
+		// */
 	}
 
 	StartPrepSDKCall(SDKCall_Static);
@@ -629,6 +641,8 @@ void LoadGameData()
 		hFile.WriteLine("					}");
 		hFile.WriteLine("				}");
 		hFile.WriteLine("			}");
+		if( g_bLeft4Dead2 )
+		{
 		hFile.WriteLine("			\"L4DD::CVomitJarProjectile::Create\"");
 		hFile.WriteLine("			{");
 		hFile.WriteLine("				\"signature\"		\"FindAddress_1\"");
@@ -695,6 +709,7 @@ void LoadGameData()
 		hFile.WriteLine("					}");
 		hFile.WriteLine("				}");
 		hFile.WriteLine("			}");
+		}
 		hFile.WriteLine("		}");
 
 		// Dynamically generated addresses
@@ -1715,6 +1730,17 @@ void LoadGameData()
 	}
 
 	StartPrepSDKCall(SDKCall_Player);
+	if( PrepSDKCall_SetFromConf(hGameData, SDKConf_Signature, "CTerrorPlayer::StopBeingRevived") == false )
+	{
+		LogError("Failed to find signature: \"CTerrorPlayer::StopBeingRevived\" (%s)", g_sSystem);
+	} else {
+		PrepSDKCall_AddParameter(SDKType_Bool, SDKPass_Plain);
+		g_hSDK_CTerrorPlayer_StopBeingRevived = EndPrepSDKCall();
+		if( g_hSDK_CTerrorPlayer_StopBeingRevived == null )
+			LogError("Failed to create SDKCall: \"CTerrorPlayer::StopBeingRevived\" (%s)", g_sSystem);
+	}
+
+	StartPrepSDKCall(SDKCall_Player);
 	if( PrepSDKCall_SetFromConf(hGameData, SDKConf_Signature, "CTerrorPlayer::OnRevived") == false )
 	{
 		LogError("Failed to find signature: \"CTerrorPlayer::OnRevived\" (%s)", g_sSystem);
@@ -2263,6 +2289,9 @@ void LoadGameData()
 
 		g_iOff_m_bFirstSurvivorLeftStartArea = hGameData.GetOffset("m_bFirstSurvivorLeftStartArea");
 		ValidateOffset(g_iOff_m_bFirstSurvivorLeftStartArea, "m_bFirstSurvivorLeftStartArea");
+
+		g_iOff_m_bInIntro = hGameData.GetOffset("m_bInIntro");
+		ValidateOffset(g_iOff_m_bInIntro, "m_bInIntro");
 	}
 	else
 	{
@@ -2332,7 +2361,7 @@ void LoadGameData()
 	}
 	else if( byte != 0x90 )
 	{
-		LogError("CTerrorPlayer::CanBecomeGhost patch: byte mis-match. %X", LoadFromAddress(g_pCTerrorPlayer_CanBecomeGhost + view_as<Address>(g_iCanBecomeGhostOffset), NumberType_Int8));
+		LogError("CTerrorPlayer::CanBecomeGhost patch: byte mismatch. %X", LoadFromAddress(g_pCTerrorPlayer_CanBecomeGhost + view_as<Address>(g_iCanBecomeGhostOffset), NumberType_Int8));
 	}
 	// ====================
 
@@ -2491,6 +2520,10 @@ void LoadGameData()
 		PrintToServer("g_iOff_m_eCurrentMainSequenceActivity = %d", g_iOff_m_eCurrentMainSequenceActivity);
 		PrintToServer("g_iOff_m_bIsCustomSequence = %d", g_iOff_m_bIsCustomSequence);
 		PrintToServer("");
+	}
+	else
+	{
+		PrintToServer("m_bInIntro = %d", g_iOff_m_bInIntro);
 	}
 	#endif
 	#endif
